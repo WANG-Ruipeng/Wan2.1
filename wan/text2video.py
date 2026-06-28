@@ -24,6 +24,11 @@ from .utils.fm_solvers import (
     retrieve_timesteps,
 )
 from .utils.fm_solvers_unipc import FlowUniPCMultistepScheduler
+from .utils.schedule_control import (
+    configure_bss_scheduler,
+    describe_configured_schedule,
+    write_schedule_json,
+)
 
 
 class WanT2V:
@@ -121,7 +126,12 @@ class WanT2V:
                  guide_scale=5.0,
                  n_prompt="",
                  seed=-1,
-                 offload_model=True):
+                 offload_model=True,
+                 sampler_mode="uniform",
+                 base_sample_steps=None,
+                 split_pairs="0,-1",
+                 dump_schedule_json=None,
+                 schedule_metadata=None):
         r"""
         Generates video frames from text prompt using diffusion process.
 
@@ -208,21 +218,52 @@ class WanT2V:
                     num_train_timesteps=self.num_train_timesteps,
                     shift=1,
                     use_dynamic_shifting=False)
-                sample_scheduler.set_timesteps(
-                    sampling_steps, device=self.device, shift=shift)
-                timesteps = sample_scheduler.timesteps
             elif sample_solver == 'dpm++':
                 sample_scheduler = FlowDPMSolverMultistepScheduler(
                     num_train_timesteps=self.num_train_timesteps,
                     shift=1,
                     use_dynamic_shifting=False)
-                sampling_sigmas = get_sampling_sigmas(sampling_steps, shift)
-                timesteps, _ = retrieve_timesteps(
-                    sample_scheduler,
-                    device=self.device,
-                    sigmas=sampling_sigmas)
             else:
                 raise NotImplementedError("Unsupported solver.")
+
+            bss_info = None
+            if sampler_mode == "uniform":
+                if sample_solver == 'unipc':
+                    sample_scheduler.set_timesteps(
+                        sampling_steps, device=self.device, shift=shift)
+                    timesteps = sample_scheduler.timesteps
+                else:
+                    sampling_sigmas = get_sampling_sigmas(
+                        sampling_steps, shift)
+                    timesteps, _ = retrieve_timesteps(
+                        sample_scheduler,
+                        device=self.device,
+                        sigmas=sampling_sigmas)
+            elif sampler_mode == "bss":
+                timesteps, bss_info = configure_bss_scheduler(
+                    sample_scheduler=sample_scheduler,
+                    sample_solver=sample_solver,
+                    actual_steps=sampling_steps,
+                    base_sample_steps=base_sample_steps,
+                    split_pairs=split_pairs,
+                    device=self.device,
+                    shift=shift,
+                )
+            else:
+                raise ValueError(f"Unsupported sampler_mode: {sampler_mode}")
+
+            if dump_schedule_json and self.rank == 0:
+                schedule_record = describe_configured_schedule(
+                    sample_scheduler=sample_scheduler,
+                    sampler_mode=sampler_mode,
+                    sample_solver=sample_solver,
+                    sampling_steps=sampling_steps,
+                    base_sample_steps=base_sample_steps,
+                    split_pairs=split_pairs,
+                    bss_info=bss_info,
+                    metadata=schedule_metadata,
+                )
+                write_schedule_json(dump_schedule_json, schedule_record)
 
             # sample videos
             latents = noise

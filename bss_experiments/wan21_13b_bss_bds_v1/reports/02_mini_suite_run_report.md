@@ -1,0 +1,89 @@
+# Wan2.1-T2V-1.3B Schedule Validation Report
+
+- Manifest: `/Users/warpwang/Documents/GitHub/Wan2.1/bss_experiments/wan21_13b_bss_bds_v1/manifests/wan21_13b_prompt_suite_manifest.csv`
+- Checks passed: 0
+- Checks failed: 0
+- Checks missing: 80
+
+## Failures or Missing
+
+- p001_simple_object_motion uniform8 schedule_json: missing schedule_json_missing
+- p001_simple_object_motion uniform10 schedule_json: missing schedule_json_missing
+- p001_simple_object_motion uniform20 schedule_json: missing schedule_json_missing
+- p001_simple_object_motion uniform30 schedule_json: missing schedule_json_missing
+- p001_simple_object_motion uniform40 schedule_json: missing schedule_json_missing
+- p001_simple_object_motion reference_uniform50 schedule_json: missing schedule_json_missing
+- p001_simple_object_motion bss10 schedule_json: missing schedule_json_missing
+- p001_simple_object_motion bss20 schedule_json: missing schedule_json_missing
+- p001_simple_object_motion bss30 schedule_json: missing schedule_json_missing
+- p001_simple_object_motion bss40 schedule_json: missing schedule_json_missing
+- p002_human_motion uniform8 schedule_json: missing schedule_json_missing
+- p002_human_motion uniform10 schedule_json: missing schedule_json_missing
+- p002_human_motion uniform20 schedule_json: missing schedule_json_missing
+- p002_human_motion uniform30 schedule_json: missing schedule_json_missing
+- p002_human_motion uniform40 schedule_json: missing schedule_json_missing
+- p002_human_motion reference_uniform50 schedule_json: missing schedule_json_missing
+- p002_human_motion bss10 schedule_json: missing schedule_json_missing
+- p002_human_motion bss20 schedule_json: missing schedule_json_missing
+- p002_human_motion bss30 schedule_json: missing schedule_json_missing
+- p002_human_motion bss40 schedule_json: missing schedule_json_missing
+- p003_camera_movement uniform8 schedule_json: missing schedule_json_missing
+- p003_camera_movement uniform10 schedule_json: missing schedule_json_missing
+- p003_camera_movement uniform20 schedule_json: missing schedule_json_missing
+- p003_camera_movement uniform30 schedule_json: missing schedule_json_missing
+- p003_camera_movement uniform40 schedule_json: missing schedule_json_missing
+- p003_camera_movement reference_uniform50 schedule_json: missing schedule_json_missing
+- p003_camera_movement bss10 schedule_json: missing schedule_json_missing
+- p003_camera_movement bss20 schedule_json: missing schedule_json_missing
+- p003_camera_movement bss30 schedule_json: missing schedule_json_missing
+- p003_camera_movement bss40 schedule_json: missing schedule_json_missing
+- p004_lighting_heavy uniform8 schedule_json: missing schedule_json_missing
+- p004_lighting_heavy uniform10 schedule_json: missing schedule_json_missing
+- p004_lighting_heavy uniform20 schedule_json: missing schedule_json_missing
+- p004_lighting_heavy uniform30 schedule_json: missing schedule_json_missing
+- p004_lighting_heavy uniform40 schedule_json: missing schedule_json_missing
+- p004_lighting_heavy reference_uniform50 schedule_json: missing schedule_json_missing
+- p004_lighting_heavy bss10 schedule_json: missing schedule_json_missing
+- p004_lighting_heavy bss20 schedule_json: missing schedule_json_missing
+- p004_lighting_heavy bss30 schedule_json: missing schedule_json_missing
+- p004_lighting_heavy bss40 schedule_json: missing schedule_json_missing
+- p005_outdoor_scene uniform8 schedule_json: missing schedule_json_missing
+- p005_outdoor_scene uniform10 schedule_json: missing schedule_json_missing
+- p005_outdoor_scene uniform20 schedule_json: missing schedule_json_missing
+- p005_outdoor_scene uniform30 schedule_json: missing schedule_json_missing
+- p005_outdoor_scene uniform40 schedule_json: missing schedule_json_missing
+- p005_outdoor_scene reference_uniform50 schedule_json: missing schedule_json_missing
+- p005_outdoor_scene bss10 schedule_json: missing schedule_json_missing
+- p005_outdoor_scene bss20 schedule_json: missing schedule_json_missing
+- p005_outdoor_scene bss30 schedule_json: missing schedule_json_missing
+- p005_outdoor_scene bss40 schedule_json: missing schedule_json_missing
+- p006_indoor_scene uniform8 schedule_json: missing schedule_json_missing
+- p006_indoor_scene uniform10 schedule_json: missing schedule_json_missing
+- p006_indoor_scene uniform20 schedule_json: missing schedule_json_missing
+- p006_indoor_scene uniform30 schedule_json: missing schedule_json_missing
+- p006_indoor_scene uniform40 schedule_json: missing schedule_json_missing
+- p006_indoor_scene reference_uniform50 schedule_json: missing schedule_json_missing
+- p006_indoor_scene bss10 schedule_json: missing schedule_json_missing
+- p006_indoor_scene bss20 schedule_json: missing schedule_json_missing
+- p006_indoor_scene bss30 schedule_json: missing schedule_json_missing
+- p006_indoor_scene bss40 schedule_json: missing schedule_json_missing
+- p007_high_frequency_detail uniform8 schedule_json: missing schedule_json_missing
+- p007_high_frequency_detail uniform10 schedule_json: missing schedule_json_missing
+- p007_high_frequency_detail uniform20 schedule_json: missing schedule_json_missing
+- p007_high_frequency_detail uniform30 schedule_json: missing schedule_json_missing
+- p007_high_frequency_detail uniform40 schedule_json: missing schedule_json_missing
+- p007_high_frequency_detail reference_uniform50 schedule_json: missing schedule_json_missing
+- p007_high_frequency_detail bss10 schedule_json: missing schedule_json_missing
+- p007_high_frequency_detail bss20 schedule_json: missing schedule_json_missing
+- p007_high_frequency_detail bss30 schedule_json: missing schedule_json_missing
+- p007_high_frequency_detail bss40 schedule_json: missing schedule_json_missing
+- p008_temporal_consistency uniform8 schedule_json: missing schedule_json_missing
+- p008_temporal_consistency uniform10 schedule_json: missing schedule_json_missing
+- p008_temporal_consistency uniform20 schedule_json: missing schedule_json_missing
+- p008_temporal_consistency uniform30 schedule_json: missing schedule_json_missing
+- p008_temporal_consistency uniform40 schedule_json: missing schedule_json_missing
+- p008_temporal_consistency reference_uniform50 schedule_json: missing schedule_json_missing
+- p008_temporal_consistency bss10 schedule_json: missing schedule_json_missing
+- p008_temporal_consistency bss20 schedule_json: missing schedule_json_missing
+- p008_temporal_consistency bss30 schedule_json: missing schedule_json_missing
+- p008_temporal_consistency bss40 schedule_json: missing schedule_json_missing

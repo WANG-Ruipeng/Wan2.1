@@ -1,0 +1,8 @@
+| split | tset | nfe_points | calibration_cases | holdout_cases | calibration_mean_gain | calibration_lcb_95 | calibration_ci_95_low | calibration_ci_95_high | calibration_win_rate | holdout_mean_gain | holdout_win_rate | notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| first_half_split | BDS_low |  | 0 | 0 | nan | nan | nan | nan | nan | nan | nan |  |
+| first_half_split | BDS_all |  | 0 | 0 | nan | nan | nan | nan | nan | nan | nan |  |
+| alternating_split | BDS_low |  | 0 | 0 | nan | nan | nan | nan | nan | nan | nan |  |
+| alternating_split | BDS_all |  | 0 | 0 | nan | nan | nan | nan | nan | nan | nan |  |
+| random_split_seed0 | BDS_low |  | 0 | 0 | nan | nan | nan | nan | nan | nan | nan |  |
+| random_split_seed0 | BDS_all |  | 0 | 0 | nan | nan | nan | nan | nan | nan | nan |  |

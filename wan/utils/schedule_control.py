@@ -1,0 +1,254 @@
+# Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
+"""Schedule helpers for same-compute BSS experiments.
+
+The official Wan samplers operate on shifted flow-matching sigma coordinates.
+Uniform sampling should continue to use the existing scheduler path.  BSS first
+builds an official base schedule, then inserts midpoints in selected intervals
+in that same shifted-sigma coordinate system.
+"""
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+
+import numpy as np
+
+from .fm_solvers import get_sampling_sigmas, retrieve_timesteps
+
+
+DEFAULT_SPLIT_PAIRS = "0,-1"
+COORDINATE_TYPE = "shifted_flow_sigma"
+
+
+def count_split_indices(split_pairs: Optional[str]) -> int:
+    """Return the number of interval split requests in a split spec."""
+    return len(_raw_split_tokens(split_pairs))
+
+
+def parse_split_indices(split_pairs: Optional[str],
+                        interval_count: int) -> List[int]:
+    """Parse comma/semicolon-separated interval indices.
+
+    Negative indices are resolved relative to the interval count, so ``-1`` is
+    the final interval between the last model-eval sigma and terminal sigma 0.
+    """
+    if interval_count <= 0:
+        raise ValueError("interval_count must be positive")
+
+    normalized = []
+    for token in _raw_split_tokens(split_pairs):
+        idx = int(token)
+        if idx < 0:
+            idx = interval_count + idx
+        if idx < 0 or idx >= interval_count:
+            raise ValueError(
+                f"split interval {token} is outside [0, {interval_count - 1}]")
+        normalized.append(idx)
+
+    if len(set(normalized)) != len(normalized):
+        raise ValueError(f"duplicate split intervals in {split_pairs!r}")
+    return normalized
+
+
+def configure_uniform_scheduler(sample_scheduler, sample_solver: str,
+                                sampling_steps: int, device,
+                                shift: float):
+    """Run the official uniform scheduler setup and return timesteps."""
+    if sample_solver == "unipc":
+        sample_scheduler.set_timesteps(
+            sampling_steps, device=device, shift=shift)
+        return sample_scheduler.timesteps
+    if sample_solver == "dpm++":
+        sampling_sigmas = get_sampling_sigmas(sampling_steps, shift)
+        timesteps, _ = retrieve_timesteps(
+            sample_scheduler, device=device, sigmas=sampling_sigmas)
+        return timesteps
+    raise NotImplementedError("Unsupported solver.")
+
+
+def configure_bss_scheduler(sample_scheduler, sample_solver: str,
+                            actual_steps: int,
+                            base_sample_steps: Optional[int],
+                            split_pairs: Optional[str], device,
+                            shift: float) -> Tuple[Any, Dict[str, Any]]:
+    """Configure a scheduler with base+midpoint BSS timesteps.
+
+    ``actual_steps`` is the same-compute target NFE.  If ``base_sample_steps`` is
+    omitted, it is inferred as ``actual_steps - number_of_splits``.
+    """
+    split_count = count_split_indices(split_pairs)
+    if split_count <= 0:
+        raise ValueError("BSS requires at least one split interval")
+    if base_sample_steps is None:
+        base_sample_steps = actual_steps - split_count
+    if base_sample_steps <= 0:
+        raise ValueError("base_sample_steps must be positive")
+    if base_sample_steps + split_count != actual_steps:
+        raise ValueError(
+            "BSS actual NFE must equal base_sample_steps + split_count: "
+            f"{actual_steps} != {base_sample_steps} + {split_count}")
+
+    configure_uniform_scheduler(
+        sample_scheduler=sample_scheduler,
+        sample_solver=sample_solver,
+        sampling_steps=base_sample_steps,
+        device=device,
+        shift=shift,
+    )
+    base_eval_sigmas = _sigmas_without_terminal(sample_scheduler)
+    terminal_sigma = float(sample_scheduler.sigmas[-1].detach().cpu().item())
+    final_eval_sigmas, inserted = build_bss_sigmas(
+        base_eval_sigmas=base_eval_sigmas,
+        terminal_sigma=terminal_sigma,
+        split_pairs=split_pairs,
+    )
+
+    # final_eval_sigmas are already shifted official coordinates, so pass
+    # shift=1.0 to avoid applying the shift transform a second time.
+    sample_scheduler.set_timesteps(
+        sigmas=final_eval_sigmas, device=device, shift=1.0)
+    timesteps = sample_scheduler.timesteps
+
+    info = {
+        "base_sample_steps": base_sample_steps,
+        "base_coords": [float(x) for x in base_eval_sigmas],
+        "final_coords": [float(x) for x in final_eval_sigmas],
+        "inserted_midpoints": inserted,
+        "coordinate_type": COORDINATE_TYPE,
+    }
+    return timesteps, info
+
+
+def build_bss_sigmas(base_eval_sigmas: Sequence[float],
+                     terminal_sigma: float,
+                     split_pairs: Optional[str]) -> Tuple[List[float],
+                                                          List[Dict[str, Any]]]:
+    """Insert midpoints into selected intervals of a base sigma schedule."""
+    base = [float(x) for x in base_eval_sigmas]
+    split_indices = set(parse_split_indices(split_pairs, len(base)))
+    final_sigmas = []
+    inserted = []
+
+    for idx, left in enumerate(base):
+        final_sigmas.append(left)
+        if idx not in split_indices:
+            continue
+        right = base[idx + 1] if idx + 1 < len(base) else terminal_sigma
+        midpoint = 0.5 * (left + float(right))
+        final_sigmas.append(midpoint)
+        inserted.append({
+            "interval_index": idx,
+            "left_coord": left,
+            "right_coord": float(right),
+            "midpoint": midpoint,
+            "inserted_position": len(final_sigmas) - 1,
+        })
+
+    return final_sigmas, inserted
+
+
+def describe_configured_schedule(sample_scheduler,
+                                  sampler_mode: str,
+                                  sample_solver: str,
+                                  sampling_steps: int,
+                                  base_sample_steps: Optional[int] = None,
+                                  split_pairs: Optional[str] = None,
+                                  bss_info: Optional[Dict[str, Any]] = None,
+                                  metadata: Optional[Dict[str, Any]] = None
+                                  ) -> Dict[str, Any]:
+    """Create a JSON-serializable schedule record."""
+    final_coords = _sigmas_without_terminal(sample_scheduler)
+    timesteps = _tensor_to_list(sample_scheduler.timesteps)
+    actual_nfe = len(timesteps)
+    metadata = dict(metadata or {})
+
+    if bss_info is None:
+        bss_info = {
+            "base_sample_steps": base_sample_steps or actual_nfe,
+            "base_coords": [float(x) for x in final_coords],
+            "final_coords": [float(x) for x in final_coords],
+            "inserted_midpoints": [],
+            "coordinate_type": COORDINATE_TYPE,
+        }
+
+    record = {
+        "model_id": metadata.get("model_id", "Wan2.1"),
+        "model_variant": metadata.get("model_variant", "T2V-1.3B"),
+        "task": metadata.get("task", "t2v"),
+        "method": metadata.get("method"),
+        "sampler_mode": sampler_mode,
+        "sample_solver": sample_solver,
+        "actual_nfe": actual_nfe,
+        "base_sample_steps": bss_info.get("base_sample_steps"),
+        "sample_steps": sampling_steps,
+        "sample_shift": metadata.get("sample_shift"),
+        "split_pairs": split_pairs if sampler_mode == "bss" else "",
+        "reference_method": metadata.get("reference_method",
+                                         "reference_uniform50"),
+        "reference_nfe": metadata.get("reference_nfe", 50),
+        "base_coords": bss_info.get("base_coords", []),
+        "final_coords": bss_info.get("final_coords",
+                                      [float(x) for x in final_coords]),
+        "inserted_midpoints": bss_info.get("inserted_midpoints", []),
+        "coordinate_type": bss_info.get("coordinate_type", COORDINATE_TYPE),
+        "timesteps": timesteps,
+        "timestep_dtype": str(getattr(sample_scheduler.timesteps, "dtype",
+                                      "")),
+        "base_seed": metadata.get("base_seed"),
+        "prompt_hash": metadata.get("prompt_hash"),
+        "size": metadata.get("size"),
+        "frame_num": metadata.get("frame_num"),
+        "sample_guide_scale": metadata.get("sample_guide_scale"),
+        "output_path": metadata.get("output_path"),
+        "git_commit": metadata.get("git_commit"),
+        "dirty_status": metadata.get("dirty_status"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "cfg_forward_passes_per_step": 2,
+    }
+    return _json_ready(record)
+
+
+def write_schedule_json(path: Optional[str], record: Dict[str, Any]) -> None:
+    """Write a schedule record if a path was requested."""
+    if not path:
+        return
+    out_path = Path(path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(
+        json.dumps(record, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _raw_split_tokens(split_pairs: Optional[str]) -> List[str]:
+    if split_pairs is None:
+        split_pairs = DEFAULT_SPLIT_PAIRS
+    text = str(split_pairs).replace(";", ",")
+    return [token.strip() for token in text.split(",") if token.strip()]
+
+
+def _sigmas_without_terminal(sample_scheduler) -> List[float]:
+    sigmas = sample_scheduler.sigmas[:-1].detach().cpu().numpy()
+    return [float(x) for x in sigmas]
+
+
+def _tensor_to_list(tensor) -> List[Any]:
+    if tensor is None:
+        return []
+    values = tensor.detach().cpu().tolist()
+    if not isinstance(values, list):
+        values = [values]
+    return [int(x) if float(x).is_integer() else float(x) for x in values]
+
+
+def _json_ready(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(k): _json_ready(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_ready(v) for v in value]
+    if isinstance(value, (np.integer, )):
+        return int(value)
+    if isinstance(value, (np.floating, )):
+        return float(value)
+    return value

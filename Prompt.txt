@@ -1,0 +1,730 @@
+You are working on Model C for our BSS/BDS paper.
+
+Primary target:
+Wan2.1 official repository:
+https://github.com/Wan-Video/Wan2.1
+
+Primary model:
+Wan2.1-T2V-1.3B
+
+Do NOT run Wan2.2 in this experiment.
+Only audit Wan2.2 availability as future extension.
+
+Scientific goal:
+Produce a Wan2.1-T2V-1.3B same-compute RGB-L1 closure row compatible with our final cross-model table.
+
+The final paper table format is:
+
+Model | Setting | Few-step prior | Ref. | Cases | BDS | Low | Middle Low | Middle High | High | Mean Δ | Win
+
+Each RGB cell must be formatted as:
+
+BSS RGB-L1 closure / Δ vs uniform [actual NFE]
+
+Example:
+0.415 / +0.224 [10 NFE]
+
+For Wan2.1-T2V-1.3B:
+- Ref. = 50
+- Low = 10 NFE
+- Middle Low = 20 NFE
+- Middle High = 30 NFE
+- High = 40 NFE
+- Same-compute comparison only:
+  BSS-T vs uniform-T at the same actual NFE.
+- Do NOT generate a matched-quality compute-saving table for the main result.
+- BDS should summarize calibration-to-holdout evidence:
+  Green / Low-only / Reject / Need more data.
+
+Current paper framing:
+- BSS is a training-free inference-time compute allocation policy.
+- For target actual NFE T:
+  BSS-T = official base schedule with T-2 steps + split first and last intervals.
+- BSS-T is NOT uniform-T.
+- BSS is compared against uniform/official sampling at the same actual NFE.
+- BDS is a calibration-to-holdout deployment score:
+  calibration prompt suite -> BDS-low / BDS-all -> predicted deployment -> holdout verification.
+- We do NOT claim BSS is universal.
+
+Existing model results:
+- Relit-LiVE:
+  Setting = Video Relight
+  Few-step prior = None
+  Ref. = 50
+  Cases = 36
+  BDS = Green
+  Low = 0.415 / +0.224 [10 NFE]
+  Middle Low = 0.743 / +0.326 [20 NFE]
+  Middle High = 0.819 / +0.220 [30 NFE]
+  High = 0.772 / +0.037 [40 NFE]
+  Mean Δ = +0.202
+  Win = 0.896
+
+- UniLumos:
+  Setting = Video Relight
+  Few-step prior = Path-consistency
+  Ref. = 25
+  Cases = 20
+  BDS = Low-only
+  Low = --
+  Middle Low = 0.347 / +0.226 [10 NFE]
+  Middle High = 0.358 / +0.073 [15 NFE]
+  High = 0.296 / -0.083 [20 NFE]
+  Mean Δ = +0.072
+  Win = 0.642
+
+Wan2.1-T2V-1.3B should output one row in the same format.
+
+Important:
+Do not train anything.
+Do not modify weights.
+Do not modify model architecture, VAE, text encoder, prompt processing, CFG/guide scale, resolution, checkpoint loading, or conditioning.
+Only add schedule-grid control and reporting.
+Use Wan2.1-T2V-1.3B only.
+Wan2.2 audit is future-extension only.
+
+Hardware:
+The final machine may be a Pro6000-class GPU, but do not assume anything.
+Always run `nvidia-smi` and record GPU/VRAM.
+If memory is tight, use official memory-saving flags such as `--offload_model True` and `--t5_cpu`, but document them.
+
+Official Wan2.1-T2V-1.3B protocol:
+- Task: `t2v-1.3B`
+- Recommended resolution: 832*480 unless local official config says otherwise
+- Reference: uniform50
+- Reference NFE: 50
+- Low baseline: uniform8
+- Main metric: RGB-L1 closure to uniform50
+- Secondary metrics: RGB L2, PSNR, temporal ref-error, runtime
+- Default sample_shift and sample_guide_scale must be verified from local code / official README.
+- Use official example prompt for smoke.
+- Use fixed prompt suite for mini-suite.
+
+Few-step prior field:
+For Wan2.1-T2V-1.3B, set `Few-step prior = None / not explicit` unless the local official documentation clearly states few-step distillation, path consistency, or special few-step training. If uncertain, write `None / not explicit` and document the audit evidence.
+
+============================================================
+PHASE 0 — Repo, model, and hardware audit
+============================================================
+
+Create output folder:
+
+`bss_experiments/wan21_13b_bss_bds_v1/`
+
+Inside:
+- reports/
+- tables/
+- metrics/
+- figures/
+- schedules/
+- manifests/
+- logs/
+- scripts/
+- patches/
+- splits/
+- prompt_suites/
+
+If running in Colab and Drive is mounted, mirror final analysis to:
+
+`/content/drive/MyDrive/Colab_Projects/Wan2.1-BSS-BDS/wan21_13b_bss_bds_v1/`
+
+Create:
+
+`reports/00_repo_model_hardware_audit.md`
+
+Report:
+- repo path
+- git remote
+- current branch
+- commit hash
+- dirty status
+- Python version
+- PyTorch version
+- CUDA version
+- output of `nvidia-smi`
+- GPU name and VRAM
+- whether this is Pro6000 or another GPU
+- whether checkpoint exists:
+  `Wan2.1-T2V-1.3B`
+- whether `generate.py` exists
+- whether official example prompt exists
+- whether `python generate.py --help` works
+- whether the following args exist:
+  - `--task`
+  - `--ckpt_dir`
+  - `--prompt`
+  - `--sample_steps`
+  - `--sample_shift`
+  - `--sample_solver`
+  - `--base_seed`
+  - `--sample_guide_scale`
+  - `--size`
+  - `--frame_num`
+  - `--save_file`
+  - `--offload_model`
+  - `--t5_cpu`
+- default values for:
+  - sample_steps
+  - sample_shift
+  - sample_solver
+  - sample_guide_scale
+  - frame_num
+  - size
+- whether T2V default sample_steps is 50
+- where scheduler/timesteps/sigmas are built
+- how sample_steps is used
+- how to count model evaluations
+
+Also audit Wan2.2 only as future extension:
+- whether Wan2.2 repo exists locally
+- whether Wan2.2-T2V-A14B / TI2V-5B / I2V-A14B are available
+- whether checkpoints exist locally
+- estimated feasibility on this GPU
+- write results to:
+  `reports/00b_wan22_future_extension_audit.md`
+
+If Wan2.1-T2V-1.3B weights are missing, stop after the audit and write exact download instructions.
+Do not fabricate results.
+
+============================================================
+PHASE 1 — Minimal schedule control patch
+============================================================
+
+Goal:
+Add BSS schedule support while preserving official uniform behavior.
+
+Patch requirements:
+1. Preserve official uniform path exactly when `--sampler_mode uniform`.
+2. Add CLI args:
+   - `--sampler_mode` choices: `uniform`, `bss`
+   - `--base_sample_steps`
+   - `--split_pairs`, default `0,-1`
+   - `--dump_schedule_json`
+3. Continue supporting official args:
+   - `--sample_steps`
+   - `--sample_shift`
+   - `--sample_solver`
+   - `--base_seed`
+   - `--sample_guide_scale`
+   - `--size`
+   - `--frame_num`
+   - `--task`
+   - `--save_file`
+   - `--ckpt_dir`
+   - `--offload_model`
+   - `--t5_cpu`
+4. For uniform:
+   - use official scheduler exactly.
+5. For BSS:
+   - base_sample_steps = actual_nfe - 2;
+   - build official base schedule with base_sample_steps;
+   - insert midpoint in first interval;
+   - insert midpoint in last interval;
+   - run exactly actual_nfe model evaluations;
+   - dump schedule JSON.
+6. Do not change model weights, prompts, guide scale, resolution, VAE, text encoder, conditioning, output format, or checkpoint loading.
+
+Important:
+Wan2.1 may use different solver coordinate conventions depending on sample_solver.
+First implement BSS in the same coordinate space used by the official scheduler for sample_steps/sample_shift.
+Record coordinate type in schedule JSON.
+If coordinate injection is not straightforward, add a minimal scheduler adapter and document the exact patch.
+
+Schedule JSON must include:
+- model_id = Wan2.1
+- model_variant = T2V-1.3B
+- task = t2v
+- method
+- sampler_mode
+- sample_solver
+- actual_nfe
+- base_sample_steps
+- sample_steps
+- sample_shift
+- split_pairs
+- reference_method = reference_uniform50
+- reference_nfe = 50
+- base_coords
+- final_coords
+- inserted_midpoints
+- coordinate_type
+- base_seed
+- prompt_hash
+- size
+- frame_num
+- sample_guide_scale
+- output_path
+- git_commit
+- dirty_status
+- timestamp
+
+Validation required:
+- uniform8 has 8 model evaluations
+- uniform10 has 10 model evaluations
+- uniform20 has 20 model evaluations
+- uniform30 has 30 model evaluations
+- uniform40 has 40 model evaluations
+- reference_uniform50 has 50 model evaluations
+- bss10 has 10 model evaluations and equals base8 + split first/last
+- bss20 has 20 model evaluations and equals base18 + split first/last
+- bss30 has 30 model evaluations and equals base28 + split first/last
+- bss40 has 40 model evaluations and equals base38 + split first/last
+- BSS-T is not equal to uniform-T
+- same prompt / seed / guide scale / size / frame_num across methods
+
+Save patch:
+`patches/wan21_13b_bss_schedule.patch`
+
+============================================================
+PHASE 2 — Define prompt suite
+============================================================
+
+We need two prompt levels.
+
+1. Official smoke prompt
+- Use the official Wan2.1 README / generate.py example prompt for `t2v-1.3B`.
+- One case only.
+- Used for patch validation.
+
+2. Fixed paper mini-suite
+- 8 prompts.
+- Save to:
+  `prompt_suites/wan21_13b_prompt_suite_v1.json`
+- Mark this as:
+  “fixed prompt suite using official Wan2.1 script”
+  not “official demo suite” unless all prompts come from official files.
+- Do not cherry-pick after seeing outputs.
+
+Prompt suite requirements:
+- 8 prompts total
+- all safe content
+- diverse video dynamics:
+  1. simple object motion
+  2. animal/human motion
+  3. camera movement
+  4. lighting-heavy scene
+  5. outdoor scene
+  6. indoor scene
+  7. high-frequency texture/detail
+  8. temporal consistency challenge
+
+Use English prompts unless official prompt is bilingual.
+Use base_seed=0 for all prompts initially.
+
+============================================================
+PHASE 3 — Build manifests
+============================================================
+
+Create script:
+
+`scripts/make_manifest_wan21_13b_bds.py`
+
+Create smoke manifest:
+
+`manifests/wan21_13b_smoke_manifest.csv`
+
+Rows:
+- one official prompt
+- uniform8
+- uniform10
+- bss10
+- reference_uniform50
+
+Create mini-suite manifest:
+
+`manifests/wan21_13b_prompt_suite_manifest.csv`
+
+Rows:
+- 8 prompts
+- uniform8
+- uniform10
+- uniform20
+- uniform30
+- uniform40
+- reference_uniform50
+- bss10
+- bss20
+- bss30
+- bss40
+
+This set is chosen to exactly populate the final cross-model same-compute table:
+- Low = 10 NFE
+- Middle Low = 20 NFE
+- Middle High = 30 NFE
+- High = 40 NFE
+
+If runtime is too high, allow a reduced run:
+- uniform8
+- uniform10
+- uniform20
+- uniform40
+- reference_uniform50
+- bss10
+- bss20
+- bss40
+and mark Middle High as missing / not run.
+But the preferred run includes 30 NFE.
+
+Manifest fields:
+- run_id
+- model_id = Wan2.1
+- model_variant = T2V-1.3B
+- task = t2v
+- modality = video
+- setting = Video Generation
+- protocol = fixed_prompt_suite_official_script
+- case_id
+- prompt
+- prompt_hash
+- method
+- method_family = uniform / bss / reference
+- sampler_mode
+- sample_solver
+- actual_nfe
+- sample_steps
+- base_sample_steps
+- sample_shift
+- split_pairs
+- sample_guide_scale
+- base_seed
+- size
+- frame_num
+- reference_method = reference_uniform50
+- reference_nfe = 50
+- low_baseline_method = uniform8
+- output_path
+- schedule_json_path
+- stdout_log_path
+- stderr_log_path
+- runtime_json_path
+- status
+- error_message
+- git_commit
+- dirty_status
+
+Default config:
+- task: t2v-1.3B
+- size: 832*480
+- sample_shift: official recommended / audited value
+- sample_guide_scale: official recommended / audited value
+- sample_solver: official default unless changed explicitly
+- base_seed: 0
+- reference_nfe: 50
+
+============================================================
+PHASE 4 — Run smoke first
+============================================================
+
+Run smoke only:
+- uniform8
+- uniform10
+- bss10
+- reference_uniform50
+
+Use official Wan2.1 prompt.
+Use Wan2.1-T2V-1.3B checkpoint.
+Use 832*480 unless OOM.
+If OOM:
+- retry with official memory-saving flags `--offload_model True --t5_cpu`
+- document this in audit.
+
+After smoke:
+- validate outputs exist
+- validate schedule JSON
+- validate model eval counts
+- validate bss10 schedule
+- compute metrics against reference_uniform50
+- create side-by-side:
+  uniform8 | uniform10 | bss10 | reference50
+
+Write:
+`reports/01_wan21_13b_smoke_report.md`
+
+If smoke fails, stop and report failure.
+
+============================================================
+PHASE 5 — Metrics
+============================================================
+
+Create:
+
+`scripts/compute_metrics_against_ref.py`
+
+For each case:
+- reference = uniform50
+- low baseline = uniform8
+- compute:
+  - RGB L1 to reference
+  - RGB L2 to reference
+  - PSNR to reference
+  - temporal_diff_l1
+  - temporal_diff_l1_to_ref
+  - rgb_l1_closure:
+    `1 - d(method, ref) / d(uniform8, ref)`
+  - temporal closure similarly
+  - runtime
+  - actual NFE
+  - compute_fraction = actual_nfe / 50
+
+Write:
+- `metrics/master_long_metrics.csv`
+- `metrics/per_case_metrics.csv`
+- `metrics/same_compute_gain_long.csv`
+
+For BDS:
+Use exact same-NFE pairs only.
+Do not interpolate.
+Do not create matched-quality saving table.
+
+============================================================
+PHASE 6 — Mini-suite run
+============================================================
+
+Only after smoke passes, run the 8-prompt fixed suite.
+
+Preferred methods:
+- uniform8
+- uniform10
+- uniform20
+- uniform30
+- uniform40
+- reference_uniform50
+- bss10
+- bss20
+- bss30
+- bss40
+
+Use resume support.
+Run one row at a time.
+Dump runtime JSON and schedule JSON for every row.
+Do not overwrite unless `--force`.
+
+Write:
+`reports/02_mini_suite_run_report.md`
+
+============================================================
+PHASE 7 — BDS calibration / holdout
+============================================================
+
+Create:
+
+`scripts/compute_bds.py`
+
+Use fixed prompt suite cases.
+
+Define:
+- BDS_low: Tset = {10}
+- BDS_all: Tset = {10,20,30,40} if all points are available
+- If 30 was not run, use {10,20,40} and note that Middle High is missing.
+
+For each split:
+1. first_half_split:
+   - first 4 prompts calibration
+   - last 4 prompts holdout
+2. alternating_split:
+   - even-index prompts calibration
+   - odd-index prompts holdout
+3. random_split_seed0:
+   - 4/4 split with seed 0
+
+For each split and Tset:
+- calibration mean gain
+- bootstrap 95% LCB
+- bootstrap 95% CI
+- calibration win rate
+- predicted verdict:
+  - Green if BDS_all LCB > 0
+  - Low-only if BDS_low LCB > 0 and BDS_all LCB <= 0
+  - Reject if BDS_low LCB <= 0
+  - Need more data if calibration n < 4 or intervals very wide
+- holdout mean gain
+- holdout win rate
+- confirmation flags:
+  - low_confirmed
+  - all_green_confirmed
+  - low_only_confirmed
+
+Use bootstrap resampling over prompts/cases, not individual NFE rows.
+
+Outputs:
+- `tables/tableA_wan21_13b_bds_by_split.csv`
+- `tables/tableA_wan21_13b_bds_by_split.md`
+- `tables/cross_model_bds_row.csv`
+- `tables/cross_model_bds_row.md`
+- `reports/03_bds_report.md`
+
+Columns for cross_model_bds_row:
+- model_id = Wan2.1
+- model_variant = T2V-1.3B
+- setting = Video Generation
+- few_step_prior = None / not explicit
+- task = t2v
+- modality = video
+- protocol = fixed_prompt_suite_official_script
+- reference_method = reference_uniform50
+- reference_nfe = 50
+- cases
+- tested_nfe_points
+- bds_low_mean_over_splits
+- bds_low_lcb_min_over_splits
+- bds_all_mean_over_splits
+- bds_all_lcb_min_over_splits
+- holdout_low_mean_gain_mean_over_splits
+- holdout_all_mean_gain_mean_over_splits
+- predicted_deployment
+- final_verdict
+- notes
+
+============================================================
+PHASE 8 — Final cross-model same-compute row
+============================================================
+
+Create:
+- `tables/table_cross_model_same_compute_wan21_row.csv`
+- `tables/table_cross_model_same_compute_wan21_row.md`
+
+This row must match the final paper table format exactly:
+
+Columns:
+- Model
+- Setting
+- Few-step prior
+- Ref.
+- Cases
+- BDS
+- Low
+- Middle Low
+- Middle High
+- High
+- Mean Δ
+- Win
+
+For Wan2.1-T2V-1.3B:
+- Model = Wan2.1
+- Setting = Video Generation
+- Few-step prior = None / not explicit, unless audit shows otherwise
+- Ref. = 50
+- Cases = number of prompt cases completed
+- BDS = Green / Low-only / Reject / Need more data
+- Low = BSS closure / delta at 10 NFE
+- Middle Low = BSS closure / delta at 20 NFE
+- Middle High = BSS closure / delta at 30 NFE
+- High = BSS closure / delta at 40 NFE
+- Mean Δ = average of available delta values over Low/Middle Low/Middle High/High
+- Win = BSS win rate over available case × NFE same-compute observations
+
+Cell format:
+`0.xxx / +0.xxx [10 NFE]`
+or
+`0.xxx / -0.xxx [40 NFE]`
+
+If a cell is missing because a run was not completed:
+- write `--`
+- add note in final report.
+Do not invent/interpolate values.
+
+Also create a LaTeX row snippet:
+
+`tables/table_cross_model_same_compute_wan21_row.tex`
+
+The LaTeX row should match this table layout:
+
+Wan2.1
+& Video Generation
+& None / not explicit
+& 50
+& <cases>
+& <BDS>
+& <Low cell>
+& <Middle Low cell>
+& <Middle High cell>
+& <High cell>
+& <Mean delta>
+& <Win>
+\\
+
+============================================================
+PHASE 9 — Figures and side-by-side
+============================================================
+
+Generate:
+- `figures/compute_quality_rgb_closure.png`
+- `figures/compute_quality_rgb_closure.pdf`
+
+Plot:
+- x-axis = NFE / reference_nfe
+- y-axis = rgb_l1_closure
+- uniform curve
+- BSS curve
+- mean over prompts
+- SEM if multiple prompts
+
+Generate side-by-side panels:
+- uniform8 | uniform10 | bss10 | reference50
+- uniform10 | bss10 | uniform20 | bss20 | uniform30 | bss30 | uniform40 | bss40 | reference50 if available
+
+Save:
+- `figures/side_by_side/index.html`
+
+============================================================
+PHASE 10 — Final report
+============================================================
+
+Create:
+
+`reports/FINAL_WAN21_13B_BSS_BDS_REPORT.md`
+
+Include:
+1. Purpose
+2. Wan2.1-1.3B model and hardware audit
+3. Wan2.2 audit as future extension only
+4. Prompt suite definition
+5. Reference definition: uniform50
+6. BSS schedule implementation summary
+7. Smoke result
+8. Mini-suite completion summary
+9. Same-compute RGB-L1 closure row in final paper format
+10. BDS calibration/holdout result
+11. Side-by-side examples
+12. Final verdict:
+    - Green / Low-only / Reject / Need more data
+13. Whether this can be included in the paper table
+14. Caveats:
+    - fixed prompt suite, not official benchmark
+    - T2V stochasticity
+    - reference is uniform50, not ground truth
+    - NFE as compute proxy
+    - sample_solver and sample_shift dependence
+15. Next steps:
+    - expand prompt suite if promising
+    - try Wan2.2-TI2V-5B or Wan2.2-T2V-A14B only after 1.3B is stable
+    - solver-coordinate ablation if mixed
+
+Use cautious wording:
+- “Wan2.1-1.3B generic video DiT baseline”
+- “fixed prompt suite using official Wan2.1 script”
+- “same-compute BSS vs uniform”
+- “BDS deployment certificate”
+- “no universal claim”
+
+Do not write:
+- “BSS universally works”
+- “BSS reaches official quality”
+- “BSS is guaranteed optimal”
+
+Final response to me should include:
+- repo commit
+- GPU audit
+- task/checkpoint used
+- smoke pass/fail
+- schedule validation summary
+- mini-suite completion count
+- final paper-format row path
+- LaTeX row snippet path
+- BDS table path
+- Wan2.2 future extension audit path
+- final report path
+- final verdict
+- recommendation whether Wan2.1-1.3B can be included in the paper table
+
+Do not push unless asked.

@@ -51,6 +51,22 @@ def flash_attention(
     """
     half_dtypes = (torch.float16, torch.bfloat16)
     assert dtype in half_dtypes
+
+    if not (FLASH_ATTN_2_AVAILABLE or FLASH_ATTN_3_AVAILABLE):
+        return _scaled_dot_product_attention(
+            q=q,
+            k=k,
+            v=v,
+            q_lens=q_lens,
+            k_lens=k_lens,
+            dropout_p=dropout_p,
+            softmax_scale=softmax_scale,
+            q_scale=q_scale,
+            causal=causal,
+            window_size=window_size,
+            dtype=dtype,
+        )
+
     assert q.device.type == 'cuda' and q.size(-1) <= 256
 
     # params
@@ -128,6 +144,65 @@ def flash_attention(
 
     # output
     return x.type(out_dtype)
+
+
+def _scaled_dot_product_attention(
+    q,
+    k,
+    v,
+    q_lens=None,
+    k_lens=None,
+    dropout_p=0.,
+    softmax_scale=None,
+    q_scale=None,
+    causal=False,
+    window_size=(-1, -1),
+    dtype=torch.bfloat16,
+):
+    """Fallback attention path for environments without flash-attn."""
+    if window_size != (-1, -1):
+        warnings.warn(
+            'Windowed attention is not supported by the SDPA fallback; using full attention.'
+        )
+
+    out_dtype = q.dtype
+    q = q.to(dtype)
+    k = k.to(dtype)
+    v = v.to(dtype)
+    if q_scale is not None:
+        q = q * q_scale
+
+    b, lq = q.size(0), q.size(1)
+    outputs = []
+    for idx in range(b):
+        q_len = int(q_lens[idx].item()) if q_lens is not None else lq
+        k_len = int(k_lens[idx].item()) if k_lens is not None else k.size(1)
+        qi = q[idx:idx + 1, :q_len].transpose(1, 2)
+        ki = k[idx:idx + 1, :k_len].transpose(1, 2)
+        vi = v[idx:idx + 1, :k_len].transpose(1, 2)
+
+        kwargs = {
+            'attn_mask': None,
+            'dropout_p': dropout_p,
+            'is_causal': causal,
+        }
+        if softmax_scale is not None:
+            kwargs['scale'] = softmax_scale
+        try:
+            xi = torch.nn.functional.scaled_dot_product_attention(
+                qi, ki, vi, **kwargs)
+        except TypeError:
+            kwargs.pop('scale', None)
+            xi = torch.nn.functional.scaled_dot_product_attention(
+                qi, ki, vi, **kwargs)
+
+        xi = xi.transpose(1, 2)
+        if q_len < lq:
+            pad = xi.new_zeros(1, lq - q_len, xi.size(2), xi.size(3))
+            xi = torch.cat([xi, pad], dim=1)
+        outputs.append(xi)
+
+    return torch.cat(outputs, dim=0).type(out_dtype)
 
 
 def attention(

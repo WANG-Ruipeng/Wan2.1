@@ -1,0 +1,51 @@
+{
+  "name": "wan21_13b_prompt_suite_v1",
+  "description": "Fixed prompt suite using official Wan2.1 script; not an official demo suite.",
+  "model_id": "Wan2.1",
+  "model_variant": "T2V-1.3B",
+  "task": "t2v",
+  "base_seed": 0,
+  "created_utc": "2026-06-28T09:34:36.747356+00:00",
+  "prompts": [
+    {
+      "case_id": "p001_simple_object_motion",
+      "category": "simple object motion",
+      "prompt": "A red ceramic mug slowly slides across a polished wooden table, leaving a soft reflection as morning light enters the room."
+    },
+    {
+      "case_id": "p002_human_motion",
+      "category": "animal/human motion",
+      "prompt": "A dancer in a blue jacket spins once on a quiet city sidewalk while loose fabric and hair follow the motion naturally."
+    },
+    {
+      "case_id": "p003_camera_movement",
+      "category": "camera movement",
+      "prompt": "A smooth forward camera move travels through a narrow greenhouse aisle, passing rows of leafy plants and glass panels."
+    },
+    {
+      "case_id": "p004_lighting_heavy",
+      "category": "lighting-heavy scene",
+      "prompt": "A glass prism on black velvet splits a bright beam of light into colored bands that shimmer across the surface."
+    },
+    {
+      "case_id": "p005_outdoor_scene",
+      "category": "outdoor scene",
+      "prompt": "A small sailboat crosses a calm lake under a cloudy sky, with distant trees reflected in the water."
+    },
+    {
+      "case_id": "p006_indoor_scene",
+      "category": "indoor scene",
+      "prompt": "A cozy kitchen scene with steam rising from a kettle while sunlight moves across tiled walls and hanging utensils."
+    },
+    {
+      "case_id": "p007_high_frequency_detail",
+      "category": "high-frequency texture/detail",
+      "prompt": "A close-up of embroidered fabric with tiny metallic threads rippling gently as a hand lifts one corner."
+    },
+    {
+      "case_id": "p008_temporal_consistency",
+      "category": "temporal consistency challenge",
+      "prompt": "A row of identical white candles flickers in sequence while the camera stays locked and wax slowly melts."
+    }
+  ]
+}

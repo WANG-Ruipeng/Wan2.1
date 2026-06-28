@@ -15,6 +15,7 @@
 *.ckpt
 *.safetensors
 *.json
+!bss_experiments/**/prompt_suites/*.json
 # *.txt
 *.backup
 *.pkl

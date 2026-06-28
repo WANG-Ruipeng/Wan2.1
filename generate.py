@@ -1,7 +1,9 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 import argparse
+import hashlib
 import logging
 import os
+import subprocess
 import sys
 import warnings
 from datetime import datetime
@@ -17,6 +19,7 @@ from PIL import Image
 import wan
 from wan.configs import MAX_AREA_CONFIGS, SIZE_CONFIGS, SUPPORTED_SIZES, WAN_CONFIGS
 from wan.utils.prompt_extend import DashScopePromptExpander, QwenPromptExpander
+from wan.utils.schedule_control import count_split_indices
 from wan.utils.utils import cache_image, cache_video, str2bool
 
 
@@ -72,6 +75,18 @@ def _validate_args(args):
         args.sample_steps = 50
         if "i2v" in args.task:
             args.sample_steps = 40
+
+    if args.sampler_mode == "bss":
+        assert "t2v" in args.task or "t2i" in args.task, (
+            "BSS sampler_mode is currently wired for WanT2V/T2I generation.")
+        split_count = count_split_indices(args.split_pairs)
+        if args.base_sample_steps is None:
+            args.base_sample_steps = args.sample_steps - split_count
+        assert args.base_sample_steps > 0, (
+            "base_sample_steps must be positive for BSS.")
+        assert args.base_sample_steps + split_count == args.sample_steps, (
+            "For BSS, sample_steps is the actual NFE and must equal "
+            "base_sample_steps + number of split intervals.")
 
     if args.sample_shift is None:
         args.sample_shift = 5.0
@@ -243,6 +258,27 @@ def _parse_args():
         type=float,
         default=5.0,
         help="Classifier free guidance scale.")
+    parser.add_argument(
+        "--sampler_mode",
+        type=str,
+        default="uniform",
+        choices=["uniform", "bss"],
+        help="Sampler schedule mode. Uniform preserves the official path.")
+    parser.add_argument(
+        "--base_sample_steps",
+        type=int,
+        default=None,
+        help="Base official steps for BSS before interval splitting.")
+    parser.add_argument(
+        "--split_pairs",
+        type=str,
+        default="0,-1",
+        help="Comma-separated scheduler interval indices to split for BSS.")
+    parser.add_argument(
+        "--dump_schedule_json",
+        type=str,
+        default=None,
+        help="Optional path to write the configured schedule JSON.")
 
     args = parser.parse_args()
 
@@ -261,6 +297,50 @@ def _init_logging(rank):
             handlers=[logging.StreamHandler(stream=sys.stdout)])
     else:
         logging.basicConfig(level=logging.ERROR)
+
+
+def _git_value(args):
+    try:
+        return subprocess.check_output(
+            ["git", *args],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        return None
+
+
+def _schedule_method(args):
+    if args.sampler_mode == "bss":
+        return f"bss{args.sample_steps}"
+    if args.sample_steps == 50:
+        return "reference_uniform50"
+    return f"uniform{args.sample_steps}"
+
+
+def _schedule_metadata(args):
+    prompt = args.prompt or ""
+    prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16]
+    dirty = _git_value(["status", "--porcelain"])
+    variant = "T2V-1.3B" if args.task == "t2v-1.3B" else args.task
+    return {
+        "model_id": "Wan2.1",
+        "model_variant": variant,
+        "task": "t2v" if "t2v" in args.task else args.task,
+        "method": _schedule_method(args),
+        "sample_shift": args.sample_shift,
+        "reference_method": "reference_uniform50",
+        "reference_nfe": 50,
+        "base_seed": args.base_seed,
+        "prompt_hash": prompt_hash,
+        "size": args.size,
+        "frame_num": args.frame_num,
+        "sample_guide_scale": args.sample_guide_scale,
+        "output_path": args.save_file,
+        "git_commit": _git_value(["rev-parse", "HEAD"]),
+        "dirty_status": "dirty" if dirty else "clean",
+    }
 
 
 def generate(args):
@@ -379,7 +459,12 @@ def generate(args):
             sampling_steps=args.sample_steps,
             guide_scale=args.sample_guide_scale,
             seed=args.base_seed,
-            offload_model=args.offload_model)
+            offload_model=args.offload_model,
+            sampler_mode=args.sampler_mode,
+            base_sample_steps=args.base_sample_steps,
+            split_pairs=args.split_pairs,
+            dump_schedule_json=args.dump_schedule_json,
+            schedule_metadata=_schedule_metadata(args))
 
     elif "i2v" in args.task:
         if args.prompt is None:

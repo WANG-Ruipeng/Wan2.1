@@ -1,0 +1,2 @@
+Model,Setting,Few-step prior,Ref.,Cases,BDS,Low,Middle Low,Middle High,High,Mean Δ,Win
+Wan2.1,Video Generation,None / not explicit,50,0,Need more data,--,--,--,--,--,--
