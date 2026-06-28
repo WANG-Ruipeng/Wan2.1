@@ -1,0 +1,10 @@
+| case_id | prompt | category | delta_at_10 | delta_at_20 | delta_at_30 | delta_at_40 | pattern | mean_delta_available | worst_delta_available | camera_motion | subject_motion | object_motion | high_texture | lighting_heavy | indoor | outdoor | temporal_challenge |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| p001_simple_object_motion | A red ceramic mug slowly slides across a polished wooden table, leaving a soft reflection as morning light enters the room. | simple object motion |  |  |  |  | missing |  |  | 0 | 0 | 1 | 0 | 1 | 1 | 0 | 0 |
+| p002_human_motion | A dancer in a blue jacket spins once on a quiet city sidewalk while loose fabric and hair follow the motion naturally. | animal/human motion |  |  |  |  | missing |  |  | 0 | 1 | 0 | 0 | 0 | 0 | 1 | 1 |
+| p003_camera_movement | A smooth forward camera move travels through a narrow greenhouse aisle, passing rows of leafy plants and glass panels. | camera movement |  |  |  |  | missing |  |  | 1 | 0 | 0 | 1 | 0 | 1 | 0 | 1 |
+| p004_lighting_heavy | A glass prism on black velvet splits a bright beam of light into colored bands that shimmer across the surface. | lighting-heavy scene |  |  |  |  | missing |  |  | 0 | 0 | 1 | 0 | 1 | 1 | 0 | 0 |
+| p005_outdoor_scene | A small sailboat crosses a calm lake under a cloudy sky, with distant trees reflected in the water. | outdoor scene |  |  |  |  | missing |  |  | 0 | 0 | 1 | 0 | 0 | 0 | 1 | 0 |
+| p006_indoor_scene | A cozy kitchen scene with steam rising from a kettle while sunlight moves across tiled walls and hanging utensils. | indoor scene |  |  |  |  | missing |  |  | 0 | 0 | 1 | 1 | 1 | 1 | 0 | 1 |
+| p007_high_frequency_detail | A close-up of embroidered fabric with tiny metallic threads rippling gently as a hand lifts one corner. | high-frequency texture/detail |  |  |  |  | missing |  |  | 0 | 1 | 1 | 1 | 0 | 1 | 0 | 1 |
+| p008_temporal_consistency | A row of identical white candles flickers in sequence while the camera stays locked and wax slowly melts. | temporal consistency challenge |  |  |  |  | missing |  |  | 0 | 0 | 1 | 0 | 1 | 1 | 0 | 1 |
