@@ -107,7 +107,9 @@ def configure_bss_scheduler(sample_scheduler, sample_solver: str,
     # final_eval_sigmas are already shifted official coordinates, so pass
     # shift=1.0 to avoid applying the shift transform a second time.
     sample_scheduler.set_timesteps(
-        sigmas=final_eval_sigmas, device=device, shift=1.0)
+        sigmas=np.asarray(final_eval_sigmas, dtype=np.float32),
+        device=device,
+        shift=1.0)
     timesteps = sample_scheduler.timesteps
 
     info = {

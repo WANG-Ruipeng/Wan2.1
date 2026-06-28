@@ -56,7 +56,8 @@ def main():
         write_manifest(manifest_path, rows, fieldnames)
         executed += 1
         if row["status"] != "done":
-            raise RuntimeError(f"Row failed: {row['run_id']}: {error[:500]}")
+            print_failure_debug(row, repo_dir)
+            raise RuntimeError(f"Row failed: {row['run_id']}: {error[:1000]}")
 
     print(f"Executed {executed} row(s). Manifest: {manifest_path}")
 
@@ -193,6 +194,34 @@ def looks_like_oom(text: str):
         "allocate",
         "memory",
     ])
+
+
+def print_failure_debug(row, repo_dir: Path):
+    print("\n===== Wan2.1 BSS/BDS row failure debug =====")
+    print(f"run_id: {row.get('run_id')}")
+    print(f"method: {row.get('method')}")
+    print(f"case_id: {row.get('case_id')}")
+    for label, field in [
+        ("stdout", "stdout_log_path"),
+        ("stderr", "stderr_log_path"),
+        ("runtime", "runtime_json_path"),
+        ("output", "output_path"),
+        ("schedule", "schedule_json_path"),
+    ]:
+        path = resolve_path(row[field], repo_dir)
+        print(f"{label}: {path}  exists={path.exists()}")
+        if label in {"stdout", "stderr", "runtime"} and path.exists():
+            print(f"\n----- tail {label} -----")
+            print(tail_text(path, 8000))
+    print("===== end failure debug =====\n")
+
+
+def tail_text(path: Path, max_chars: int):
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except Exception as exc:
+        return f"<failed to read {path}: {exc}>"
+    return text[-max_chars:]
 
 
 def read_manifest(path: Path):
